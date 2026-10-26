@@ -362,12 +362,10 @@ function refreshCredentials(config) {
   }, REFRESH_REQUEST_TIMEOUT).finally(() => {
     pendingRefresh = null;
   });
-  // Callers may stop waiting before the refresh settles.
   pendingRefresh.catch(() => {});
   return pendingRefresh;
 }
 
-// Bounds only how long the caller waits; the refresh itself keeps running.
 function waitFor(promise, timeoutMs) {
   let timer;
   const expired = new Promise((_, reject) => {
@@ -424,7 +422,7 @@ async function clearCredentials() {
 
 async function startAuthFlow(
   config,
-  { force = false, timeoutMs = AUTH_TIMEOUT } = {},
+  { force = false, timeoutMs = AUTH_TIMEOUT, printUrl = false } = {},
 ) {
   return withAuthLock(async (remaining) => {
     const current = loadCredentials();
@@ -537,6 +535,12 @@ async function startAuthFlow(
           ),
         );
         server.listen(AUTH_PORT, '127.0.0.1', () => {
+          // The Supermemory CLI collects these links to approve several
+          // plugins on one consent screen.
+          if (printUrl) {
+            process.stdout.write(`SUPERMEMORY_AUTHORIZE_URL=${authorizationUrl}\n`);
+            return;
+          }
           openUrl(authorizationUrl).catch(() =>
             reject(
               new Error(
@@ -567,7 +571,6 @@ module.exports = {
   openUrl,
 };
 
-// Status must never print credentials.
 if (require.main === module) {
   (async () => {
     const { getBaseUrl, getMcpUrl } = require('./settings');
@@ -576,6 +579,7 @@ if (require.main === module) {
       await startAuthFlow(getOAuthConfig(getBaseUrl(), getMcpUrl()), {
         force: true,
         timeoutMs: 5 * 60 * 1000,
+        printUrl: process.argv.includes('--print-url'),
       });
       console.log('Supermemory connected through OAuth.');
     } else if (command === 'logout') {
