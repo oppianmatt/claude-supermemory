@@ -159,7 +159,7 @@ async function addMemory(
         supportingContext: options.supportingContext ?? options.entityContext,
         metadata: { sm_source: 'claude-code', ...metadata },
         taskType: 'memory',
-        dreaming: 'dynamic',
+        dreaming: options.dreaming ?? 'dynamic',
       },
       sdkOptions(options),
     );
@@ -191,6 +191,7 @@ async function addMemory(
     body.customId = options.id ?? options.customId;
   if (options.supportingContext ?? options.entityContext)
     body.entityContext = options.supportingContext ?? options.entityContext;
+  if (options.dreaming) body.dreaming = options.dreaming;
   const result = await post(
     baseUrl,
     apiKey,
