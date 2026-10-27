@@ -1,3 +1,4 @@
+const crypto = require('node:crypto');
 const http = require('node:http');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -20,11 +21,31 @@ const authErrorHtml = fs.readFileSync(
 );
 
 const EXPIRES_MARGIN_MS = 15000;
+const TOKEN_FILE = path.join(
+  os.homedir(),
+  '.supermemory-claude',
+  'auth-server-token',
+);
+
+function readPreviousToken() {
+  try {
+    return fs.readFileSync(TOKEN_FILE, 'utf-8').trim();
+  } catch {
+    return '';
+  }
+}
+
+function writeToken(token) {
+  fs.mkdirSync(path.dirname(TOKEN_FILE), { recursive: true });
+  fs.writeFileSync(TOKEN_FILE, token, { mode: 0o600 });
+  fs.chmodSync(TOKEN_FILE, 0o600);
+}
 
 function stopPreviousServer() {
+  const state = encodeURIComponent(readPreviousToken());
   return new Promise((resolve) => {
     const req = http.get(
-      `http://127.0.0.1:${AUTH_PORT}/stop`,
+      `http://127.0.0.1:${AUTH_PORT}/stop?state=${state}`,
       { timeout: 1000 },
       (res) => {
         res.resume();
@@ -50,10 +71,15 @@ function listen(server) {
 }
 
 async function main() {
+  const token = crypto.randomBytes(24).toString('hex');
   const server = http.createServer((req, res) => {
     const url = new URL(req.url, `http://localhost:${AUTH_PORT}`);
+    const guarded = url.pathname === '/callback' || url.pathname === '/stop';
 
-    if (url.pathname === '/callback') {
+    if (guarded && url.searchParams.get('state') !== token) {
+      res.writeHead(403, { 'Content-Type': 'text/html' });
+      res.end(authErrorHtml);
+    } else if (url.pathname === '/callback') {
       const apiKey =
         url.searchParams.get('apikey') || url.searchParams.get('api_key');
       if (apiKey?.startsWith('sm_')) {
@@ -80,9 +106,10 @@ async function main() {
     await stopPreviousServer();
     await listen(server);
   }
+  writeToken(token);
 
   const expires = Date.now() + AUTH_WAIT_MS - EXPIRES_MARGIN_MS;
-  const callbackUrl = `http://localhost:${AUTH_PORT}/callback`;
+  const callbackUrl = `http://localhost:${AUTH_PORT}/callback?state=${token}`;
   const params = new URLSearchParams({
     callback: callbackUrl,
     client: 'claude_code',

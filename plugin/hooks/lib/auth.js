@@ -88,6 +88,14 @@ function startAuthFlow() {
 
   return new Promise((resolve, reject) => {
     const startedAt = Date.now();
+    const fail = () => {
+      clearInterval(timer);
+      reject(new Error('AUTH_FAILED'));
+    };
+    child.on('error', fail);
+    child.on('exit', (code) => {
+      if (code !== 0) fail();
+    });
     const timer = setInterval(() => {
       const credentials = loadCredentials();
       if (credentials) {
