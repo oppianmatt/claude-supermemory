@@ -191,7 +191,8 @@ async function addMemory(
     body.customId = options.id ?? options.customId;
   if (options.supportingContext ?? options.entityContext)
     body.entityContext = options.supportingContext ?? options.entityContext;
-  if (options.dreaming) body.dreaming = options.dreaming;
+  // Only when chosen, so the default legacy request stays as it was.
+  if (options.dreaming === 'instant') body.dreaming = 'instant';
   const result = await post(
     baseUrl,
     apiKey,
