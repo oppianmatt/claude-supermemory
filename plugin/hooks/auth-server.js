@@ -49,13 +49,13 @@ function stopPreviousServer() {
       { timeout: 1000 },
       (res) => {
         res.resume();
-        res.on('end', () => setTimeout(resolve, 200));
+        res.on('end', () => setTimeout(() => resolve(res.statusCode), 200));
       },
     );
-    req.on('error', resolve);
+    req.on('error', () => resolve(0));
     req.on('timeout', () => {
       req.destroy();
-      resolve();
+      resolve(0);
     });
   });
 }
@@ -103,8 +103,8 @@ async function main() {
     await listen(server);
   } catch (err) {
     if (err.code !== 'EADDRINUSE') process.exit(1);
-    await stopPreviousServer();
-    await listen(server);
+    const stopStatus = await stopPreviousServer();
+    await listen(server).catch(() => process.exit(stopStatus === 403 ? 0 : 1));
   }
   writeToken(token);
 
